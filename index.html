@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#18212B">
+<title>Rota de Entregas</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800&family=Barlow:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<style>
+:root{
+  --bg:#EEF1F3;--card:#FFF;--ink:#18212B;--muted:#5B6773;--line:#D5DBE0;
+  --cone:#EE4D2D;--cone-ink:#FFF;--ok:#17864A;--ok-soft:#DFF3E7;--fail:#B42318;--fail-soft:#FDE4E1;--warn:#A15C00;--warn-soft:#FFF1D6;
+  color-scheme:light;
+}
+@media (prefers-color-scheme:dark){:root{
+  --bg:#10161C;--card:#18212B;--ink:#EEF2F5;--muted:#9AA7B3;--line:#2C3A47;
+  --cone:#FF6A45;--ok:#3CC47C;--ok-soft:#163726;--fail:#FF7A6B;--fail-soft:#3D1D1A;--warn:#F2B65A;--warn-soft:#3A2C12;color-scheme:dark}}
+*,*::before,*::after{box-sizing:border-box}
+html{scroll-padding-top:190px}
+body{margin:0;background:var(--bg);color:var(--ink);font:500 16px/1.4 Barlow,"Segoe UI",Roboto,Arial,sans-serif;-webkit-tap-highlight-color:transparent;padding-bottom:env(safe-area-inset-bottom)}
+button,input,select{font:inherit;color:inherit}
+a{color:inherit}
+[hidden]{display:none!important}
+.cond{font-family:"Barlow Condensed","Arial Narrow",sans-serif}
+
+/* topo */
+.top{position:sticky;top:0;z-index:1000;background:var(--ink);color:var(--bg);padding:calc(env(safe-area-inset-top) + 10px) 14px 10px}
+.wrap{max-width:760px;margin:0 auto}
+.row{display:flex;align-items:flex-end;justify-content:space-between;gap:10px}
+.count{font:800 42px/1 "Barlow Condensed",sans-serif}
+.count small{font-size:20px;font-weight:600;opacity:.7}
+.eta{margin-top:4px;font:700 17px/1.2 "Barlow Condensed",sans-serif;color:var(--cone)}
+.side{text-align:right;font-size:13px;opacity:.8;white-space:nowrap}
+.bar{height:9px;border-radius:5px;background:rgba(127,127,127,.35);overflow:hidden;margin-top:9px;display:flex}
+.bar i{display:block;height:100%;transition:width .3s}
+.bar .b-ok{background:var(--cone)}.bar .b-fail{background:#8E9AA6}
+.tabs{display:flex;gap:6px;margin-top:10px}
+.tabs button{flex:1;border:0;border-radius:10px;padding:10px 4px;background:rgba(127,127,127,.22);color:var(--bg);font-weight:700}
+.tabs button[aria-selected="true"]{background:var(--bg);color:var(--ink)}
+.tools{display:flex;gap:6px;margin-top:8px}
+.tools input{flex:1;min-width:0;border:0;border-radius:10px;padding:10px 12px;background:var(--bg);color:var(--ink);font-size:16px}
+.tools button{border:0;border-radius:10px;padding:0 12px;background:var(--bg);color:var(--ink);font-weight:700;white-space:nowrap}
+.tools button[aria-pressed="true"]{background:var(--cone);color:var(--cone-ink)}
+.tools .scan{background:var(--cone);color:var(--cone-ink);font-size:15px}
+
+main{max-width:760px;margin:0 auto;padding:12px 12px 40px}
+
+/* carregar */
+.load{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:22px 18px;margin-top:6px}
+.load h1{font:800 34px/1.05 "Barlow Condensed",sans-serif;margin:0 0 6px}
+.load p{color:var(--muted);margin:0 0 16px}
+.drop{display:block;border:2.5px dashed var(--line);border-radius:14px;padding:26px 14px;text-align:center;cursor:pointer;font-weight:700}
+.drop.over{border-color:var(--cone);background:var(--warn-soft)}
+.drop b{display:block;font:800 22px "Barlow Condensed",sans-serif;color:var(--cone)}
+.opt{display:flex;gap:10px;align-items:flex-start;margin-top:14px}
+.opt input{width:22px;height:22px;margin-top:1px;accent-color:var(--cone)}
+.opt span small{display:block;color:var(--muted)}
+.err{margin-top:14px;background:var(--fail-soft);color:var(--fail);padding:10px 12px;border-radius:10px;font-weight:600}
+.busy{margin-top:14px;color:var(--muted);font-weight:600}
+
+/* paradas */
+.info{display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:space-between;color:var(--muted);font-size:14px;margin:0 2px 12px}
+.info button,.ghost{border:1px solid var(--line);background:var(--card);border-radius:10px;padding:8px 12px;font-weight:700;color:var(--ink)}
+.stop{background:var(--card);border:1px solid var(--line);border-radius:14px;margin:0 0 14px;overflow:hidden}
+.stop.next{border:2px solid var(--cone)}
+.stop.done{opacity:.6}
+.sh{display:flex;gap:12px;align-items:center;padding:12px 14px;border-bottom:1px solid var(--line)}
+.num{flex:none;width:48px;height:48px;border-radius:10px;background:var(--cone);color:var(--cone-ink);display:grid;place-items:center;font:800 28px/1 "Barlow Condensed",sans-serif}
+.stop.done .num{background:var(--ok)}
+.st{flex:1;min-width:0}
+.st b{display:block;font:700 20px/1.15 "Barlow Condensed",sans-serif}
+.st span{font-size:14px;color:var(--muted)}
+.st .t{color:var(--ink);font-weight:700}
+.nav{display:flex;gap:6px;padding:10px 14px;border-bottom:1px solid var(--line)}
+.nav a{flex:1;text-align:center;text-decoration:none;font-weight:700;padding:11px 8px;border-radius:10px;background:var(--bg)}
+.nav a.waze{background:var(--ink);color:var(--bg)}
+.addr{padding:10px 14px 4px}
+.addr+.addr{border-top:1px dashed var(--line)}
+.ah{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;margin-bottom:4px}
+.ah b{font-weight:700}
+.meta{display:block;font-size:13px;color:var(--muted)}
+.flag{color:var(--warn);font-weight:700}
+.pin{flex:none;display:flex;gap:6px}
+.pin a{font-size:13px;font-weight:700;text-decoration:none;padding:6px 9px;border-radius:8px;border:1px solid var(--line)}
+.pkg{display:flex;flex-wrap:wrap;align-items:center;gap:0 10px;border-top:1px solid var(--line);padding:4px 0}
+.ah+.pkg{border-top:0}
+.tap{flex:1;min-width:0;display:flex;align-items:center;gap:12px;border:0;background:transparent;text-align:left;padding:8px 0;cursor:pointer}
+.box{flex:none;width:34px;height:34px;border-radius:8px;border:2.5px solid var(--muted);display:grid;place-items:center;font-weight:800;color:transparent}
+.pkg.ok .box{background:var(--ok);border-color:var(--ok);color:#fff}
+.pkg.fail .box{background:var(--fail);border-color:var(--fail);color:#fff}
+.pt{flex:1;min-width:0}
+.code{display:block;font:600 17px/1.2 "Barlow Condensed",sans-serif;letter-spacing:.3px;word-break:break-all}
+.code em{font-style:normal;font-weight:800;color:var(--cone)}
+.pt .c{display:block;font-size:14px;color:var(--muted)}
+.ctc{flex-basis:100%;padding:0 0 8px 46px}.ctc:empty{display:none}.ctc .c{display:block;font-size:14px}.ctc .nm{color:var(--ink);font-weight:600}.ctc a{font-weight:700;text-decoration:none;color:var(--cone);margin-right:10px}
+.pt .why{display:block;font-size:13px;font-weight:700;color:var(--fail)}
+.pkg.ok .code,.pkg.fail .code{text-decoration:line-through;opacity:.6}
+.pn{flex:none;font:700 15px "Barlow Condensed",sans-serif;color:var(--muted);min-width:24px;text-align:right}
+.more{flex:none;width:40px;height:40px;border-radius:10px;border:1px solid var(--line);background:transparent;font-weight:800;font-size:18px;line-height:1}
+.hide-done .pkg.ok,.hide-done .pkg.fail,.hide-done .stop.done{display:none}
+.hit{background:var(--warn-soft);border-radius:8px}
+.hl{animation:hl 1.4s ease-out}
+@keyframes hl{from{background:var(--ok-soft)}to{background:transparent}}
+.empty{text-align:center;color:var(--muted);padding:26px 10px}
+
+/* mapa */
+#mapBox{position:relative}
+#map{height:60vh;min-height:360px;border-radius:14px;border:1px solid var(--line);z-index:1}
+.mapbtns{position:absolute;right:10px;bottom:14px;z-index:500;display:flex;flex-direction:column;gap:8px}
+.mapbtns button{border:0;border-radius:12px;padding:12px 14px;background:var(--ink);color:var(--bg);font-weight:700;box-shadow:0 2px 8px rgba(0,0,0,.25)}
+.mk{width:34px;height:34px;border-radius:50%;background:var(--cone);color:#fff;display:grid;place-items:center;font:800 17px "Barlow Condensed",sans-serif;border:3px solid #fff;box-shadow:0 1px 5px rgba(0,0,0,.4)}
+.mk.done{background:var(--ok)}.mk.next{width:42px;height:42px;font-size:21px;background:var(--ink);color:#fff}
+.me{width:18px;height:18px;border-radius:50%;background:#1A73E8;border:3px solid #fff;box-shadow:0 0 0 6px rgba(26,115,232,.25)}
+.leaflet-popup-content{font:500 14px/1.35 Barlow,sans-serif;margin:12px 14px}
+.pop b{font:700 17px "Barlow Condensed",sans-serif}
+.pop .nav{padding:8px 0 0;border:0}
+.pop .nav a{color:#18212B;background:#EEF1F3;padding:8px}
+.pop .nav a.waze{background:#18212B;color:#fff}
+
+/* resumo */
+.sum{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px}
+.kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:14px}
+.kpi{background:var(--bg);border-radius:12px;padding:10px;text-align:center}
+.kpi b{display:block;font:800 32px/1 "Barlow Condensed",sans-serif}
+.kpi span{font-size:13px;color:var(--muted)}
+.kpi.ok b{color:var(--ok)}.kpi.fail b{color:var(--fail)}
+.sum h2{font:700 20px "Barlow Condensed",sans-serif;margin:16px 0 6px}
+.sum ul{margin:0;padding-left:18px}
+.sum li{margin:4px 0}
+.acts{display:flex;flex-wrap:wrap;gap:8px;margin-top:16px}
+.acts button{flex:1 1 140px;border:0;border-radius:12px;padding:13px;font-weight:700;background:var(--ink);color:var(--bg)}
+.acts .ghost{background:var(--card);color:var(--ink);border:1px solid var(--line)}
+
+/* modais */
+.sheet{position:fixed;inset:0;z-index:2000;background:rgba(0,0,0,.5);display:flex;align-items:flex-end;justify-content:center}
+.sheet .in{background:var(--card);width:100%;max-width:560px;border-radius:18px 18px 0 0;padding:16px 16px calc(16px + env(safe-area-inset-bottom))}
+.sheet h3{margin:0 0 4px;font:700 22px "Barlow Condensed",sans-serif}
+.sheet p{margin:0 0 12px;color:var(--muted);font-size:14px}
+.reasons{display:grid;gap:8px}
+.reasons button{border:1px solid var(--line);background:var(--bg);border-radius:12px;padding:14px;font-weight:700;text-align:left}
+.reasons .danger{color:var(--fail)}
+.reasons .okb{background:var(--ok);color:#fff;border-color:var(--ok)}
+.cam{position:fixed;inset:0;z-index:2000;background:#000;display:flex;flex-direction:column}
+.cam video{flex:1;width:100%;object-fit:cover;min-height:0}
+.cam .frame{position:absolute;left:10%;right:10%;top:32%;height:22%;border:3px solid var(--cone);border-radius:14px;box-shadow:0 0 0 999px rgba(0,0,0,.35);pointer-events:none}
+.cam .cb{padding:14px 16px calc(14px + env(safe-area-inset-bottom));background:#111;color:#fff;display:flex;gap:10px;align-items:center}
+.cam .cb span{flex:1;font-weight:600}
+.cam .cb button{border:0;border-radius:12px;padding:12px 18px;font-weight:700;background:#fff;color:#111}
+.toast{position:fixed;left:50%;top:calc(env(safe-area-inset-top) + 16px);transform:translateX(-50%);z-index:3000;background:var(--ink);color:var(--bg);padding:12px 18px;border-radius:12px;font-weight:700;max-width:92vw;box-shadow:0 4px 16px rgba(0,0,0,.3)}
+.toast.good{background:var(--ok);color:#fff}.toast.bad{background:var(--fail);color:#fff}
+footer{max-width:760px;margin:0 auto;padding:0 16px 30px;color:var(--muted);font-size:14px}
+:focus-visible{outline:3px solid var(--cone);outline-offset:2px}
+@media (prefers-reduced-motion:reduce){.bar i{transition:none}.hl{animation:none}}
+</style>
+</head>
+<body>
+<header class="top" id="top" hidden>
+  <div class="wrap">
+    <div class="row">
+      <div><div class="count" id="count">0<small> / 0</small></div><div class="eta" id="eta"></div></div>
+      <div class="side"><span id="next"></span><br><span id="src"></span></div>
+    </div>
+    <div class="bar"><i class="b-ok" id="barOk"></i><i class="b-fail" id="barFail"></i></div>
+    <div class="tabs" role="tablist">
+      <button role="tab" data-tab="lista" aria-selected="true">Lista</button>
+      <button role="tab" data-tab="mapa" aria-selected="false">Mapa</button>
+      <button role="tab" data-tab="resumo" aria-selected="false">Resumo</button>
+    </div>
+    <div class="tools" id="tools">
+      <input id="q" type="search" autocomplete="off" placeholder="Buscar código, rua ou nº" aria-label="Buscar pacote">
+      <button class="scan" id="scanBtn" aria-label="Ler código de barras">📷 Ler</button>
+      <button id="toggle" aria-pressed="false">Pendentes</button>
+    </div>
+  </div>
+</header>
+
+<main>
+  <section id="loadView">
+    <div class="load">
+      <h1>Rota de Entregas</h1>
+      <p>Carregue a planilha da Shopee. O app separa os pacotes por rua, monta a melhor ordem pelas ruas de verdade e mostra tudo no mapa.</p>
+      <label class="drop" id="drop"><b>Carregar planilha</b>.xlsx ou .csv — toque aqui ou arraste o arquivo
+        <input type="file" id="file" accept=".xlsx,.xls,.csv" hidden></label>
+      <label class="opt"><input type="checkbox" id="optGps" checked><span>Começar de onde eu estou<small>Usa o GPS do celular como ponto de partida.</small></span></label>
+      <label class="opt"><input type="checkbox" id="optStreet" checked><span>Deixar cada rua junta<small>Todos os pacotes de uma rua ficam na mesma parada.</small></span></label>
+      <div class="busy" id="busy" hidden></div>
+      <div class="err" id="err" hidden></div>
+    </div>
+  </section>
+
+  <section id="listView" hidden>
+    <div class="info"><span id="infoTxt"></span><span><button id="recalc">Recalcular daqui</button> <button id="newFile">Nova planilha</button></span></div>
+    <div id="list"></div>
+  </section>
+
+  <section id="mapView" hidden>
+    <div id="mapBox"><div id="map"></div>
+      <div class="mapbtns"><button id="goNext">Próxima parada</button><button id="locate">📍 Onde estou</button></div></div>
+  </section>
+
+  <section id="sumView" hidden><div class="sum" id="sum"></div></section>
+</main>
+<footer id="foot" hidden>Toque no pacote para marcar como entregue. Use o botão ⋯ para "não entregue". O progresso fica salvo neste celular, mesmo sem internet.</footer>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="core.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
